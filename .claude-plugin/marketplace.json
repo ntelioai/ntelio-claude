@@ -1,0 +1,20 @@
+{
+  "name": "ntelio-claude",
+  "description": "Development tools for ntelio platform (Scriptr.io, ntelioUI, ntelioMiddleware)",
+  "owner": {
+    "name": "ntelio.ai",
+    "email": "walid@ntelio.ai"
+  },
+  "plugins": [
+    {
+      "name": "ntelio-tools",
+      "description": "Commands for syncing files, testing APIs, creating endpoints, and building business objects on the ntelio platform",
+      "version": "1.0.0",
+      "source": "./plugins/ntelio-tools",
+      "category": "development",
+      "author": {
+        "name": "ntelio.ai"
+      }
+    }
+  ]
+}

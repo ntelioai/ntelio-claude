@@ -1,0 +1,21 @@
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+
+# Credentials (never commit)
+scriptrExtensionConfig.json
+*.local.json
+
+# Temporary files
+*.tmp
+*.log
+
+# Node modules (if any)
+node_modules/
