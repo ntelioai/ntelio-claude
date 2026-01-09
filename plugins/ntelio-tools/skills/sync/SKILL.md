@@ -1,7 +1,7 @@
 ---
 name: sync
 description: Sync files to Scriptr.io platform. Use when the user wants to deploy, sync, or upload files to their Scriptr.io instance.
-allowed-tools: Read, Bash, Glob, mcp__scriptr__sync_file
+allowed-tools: Read, Write, Bash, Glob, mcp__scriptr__sync_file
 ---
 
 # Scriptr.io File Sync
@@ -24,6 +24,62 @@ This skill syncs local files to Scriptr.io platform for deployment.
 /sync client/pages/*.js
 ```
 
+## CRITICAL: Metadata Files
+
+**Before syncing ANY file, ensure its `.metadata` file exists.** The MCP sync tool reads metadata files to determine content type and ACL permissions.
+
+### Why Metadata Matters
+
+| Content Type | Behavior |
+|-------------|----------|
+| `application/vnd.scriptr-javascript` | Server-side script (ES5, executable) |
+| `application/javascript` | Browser JavaScript (ES6, served as static) |
+| `text/html` | HTML page served to browser |
+| `text/css` | CSS stylesheet served to browser |
+
+### Metadata File Format
+
+For file `filename.ext`, create `.filename.ext.metadata` in same directory:
+
+```json
+{"acl":{"read":"anonymous","write":"nobody","execute":"nobody"},"contentType":"application/javascript"}
+```
+
+### ACL Rules
+
+| Permission | `anonymous` | `authenticated` | `nobody` |
+|------------|-------------|-----------------|----------|
+| **read** | Anyone can fetch | Auth required | Cannot read |
+| **execute** | Public endpoint | Protected endpoint | Not an endpoint |
+
+### Metadata by File Type
+
+| File Location | Content Type | ACL Read | ACL Execute |
+|--------------|--------------|----------|-------------|
+| `client/**/*.js` | `application/javascript` | `anonymous` | `nobody` |
+| `**/*.html` | `text/html` | `anonymous` | `nobody` |
+| `**/*.css` | `text/css` | `anonymous` | `nobody` |
+| `openapi/handlers/**/*` | `application/vnd.scriptr-javascript` | `nobody` | `authenticated` |
+| `**/lib/*.js` (server) | `application/vnd.scriptr-javascript` | `nobody` | `nobody` |
+
+### Creating Metadata Files
+
+**ALWAYS create metadata when creating new files:**
+
+```bash
+# Browser JavaScript (client-side)
+echo '{"acl":{"read":"anonymous","write":"nobody","execute":"nobody"},"contentType":"application/javascript"}' > .filename.js.metadata
+
+# Server-side API endpoint
+echo '{"acl":{"read":"nobody","write":"nobody","execute":"authenticated"},"contentType":"application/vnd.scriptr-javascript"}' > .filename.metadata
+
+# Public API endpoint (webhooks)
+echo '{"acl":{"read":"nobody","write":"nobody","execute":"anonymous"},"contentType":"application/vnd.scriptr-javascript"}' > .filename.metadata
+
+# HTML page
+echo '{"acl":{"read":"anonymous","write":"nobody","execute":"nobody"},"contentType":"text/html"}' > .filename.html.metadata
+```
+
 ## Workflow
 
 ### Step 1: Identify Files to Sync
@@ -33,7 +89,79 @@ Parse the user's request to determine:
 - Multiple file paths (space-separated)
 - Glob pattern (e.g., `*.js`, `handlers/**/*`)
 
-### Step 2: Load Credentials
+### Step 2: Verify Metadata Files Exist
+
+For each file to sync, check if `.filename.ext.metadata` exists.
+
+**If metadata exists:** Use it as-is.
+
+**If metadata is missing:** Try to infer the correct metadata based on file location and extension:
+
+#### Auto-Create Rules (High Confidence)
+
+| File Pattern | Content Type | ACL | Auto-Create? |
+|-------------|--------------|-----|--------------|
+| `client/**/*.js` | `application/javascript` | read:anonymous, execute:nobody | ✅ Yes |
+| `client/**/*.html` | `text/html` | read:anonymous, execute:nobody | ✅ Yes |
+| `client/**/*.css` | `text/css` | read:anonymous, execute:nobody | ✅ Yes |
+| `static/**/*` | Based on extension | read:anonymous, execute:nobody | ✅ Yes |
+| `**/*.json` | `application/json` | read:anonymous, execute:nobody | ✅ Yes |
+| `**/*.xml` | `text/xml` | read:anonymous, execute:nobody | ✅ Yes |
+| `openapi/handlers/**/*` | `application/vnd.scriptr-javascript` | read:nobody, execute:authenticated | ✅ Yes |
+| `ntelioMiddleware/server/handlers/**/*` | `application/vnd.scriptr-javascript` | read:nobody, execute:authenticated | ✅ Yes |
+| `vscodePlugin/**/*` | `application/vnd.scriptr-javascript` | read:nobody, execute:authenticated | ✅ Yes |
+| `setup/**/*` (no ext) | `application/vnd.scriptr-javascript` | read:nobody, execute:authenticated | ✅ Yes |
+
+#### Ask User (Uncertain Cases)
+
+For files that don't match the patterns above, **ask the user** using AskUserQuestion:
+
+```
+File: path/to/unknown/file.js
+
+I need to create a metadata file for this. What type of file is this?
+
+Options:
+1. Browser JavaScript (ES6, served to browser)
+2. Server-side Scriptr.io script (ES5, API endpoint - protected)
+3. Server-side Scriptr.io script (ES5, API endpoint - public)
+4. Server-side library (ES5, not directly callable)
+```
+
+Then ask about ACL if needed:
+```
+Should this file be:
+1. Public (anyone can access/execute)
+2. Protected (requires authentication)
+3. Internal only (not directly accessible)
+```
+
+#### Auto-Create Metadata Code
+
+When auto-creating, use Write tool:
+
+```javascript
+// Browser resource (client-side JS, HTML, CSS)
+Write(".filename.ext.metadata", '{"acl":{"read":"anonymous","write":"nobody","execute":"nobody"},"contentType":"application/javascript"}')
+
+// Server-side API handler (protected)
+Write(".filename.metadata", '{"acl":{"read":"nobody","write":"nobody","execute":"authenticated"},"contentType":"application/vnd.scriptr-javascript"}')
+
+// Server-side API handler (public webhook)
+Write(".filename.metadata", '{"acl":{"read":"nobody","write":"nobody","execute":"anonymous"},"contentType":"application/vnd.scriptr-javascript"}')
+
+// Server-side library (not an entry point)
+Write(".filename.metadata", '{"acl":{"read":"nobody","write":"nobody","execute":"nobody"},"contentType":"application/vnd.scriptr-javascript"}')
+```
+
+**Always inform the user when metadata is auto-created:**
+```
+⚠️ Created missing metadata file: .filename.ext.metadata
+   Type: Browser JavaScript
+   ACL: read=anonymous, execute=nobody
+```
+
+### Step 3: Load Credentials
 
 Read credentials from `scriptrExtensionConfig.json` in project root:
 
@@ -46,16 +174,18 @@ Read credentials from `scriptrExtensionConfig.json` in project root:
 
 If credentials file not found, prompt user to create it.
 
-### Step 3: Validate Files
+### Step 4: Validate Files
 
 For each file path:
 1. Check if file exists
 2. Check if file matches `.scriptrIgnore` patterns (skip if matched)
 3. Determine the remote path (project-relative)
 
-### Step 4: Sync Files
+### Step 5: Sync Files
 
-For each valid file, call the MCP sync tool:
+**Method 1: MCP Tool (Recommended)**
+
+The MCP tool automatically reads the `.metadata` file:
 
 ```
 mcp__scriptr__sync_file({
@@ -66,7 +196,32 @@ mcp__scriptr__sync_file({
 })
 ```
 
-### Step 5: Report Results
+**Method 2: Direct curl (Manual)**
+
+For manual sync with explicit ACL control:
+
+```bash
+# Read metadata
+METADATA=$(cat ".filename.ext.metadata")
+ACL_READ=$(echo "$METADATA" | jq -r '.acl.read')
+ACL_WRITE=$(echo "$METADATA" | jq -r '.acl.write')
+ACL_EXECUTE=$(echo "$METADATA" | jq -r '.acl.execute')
+CONTENT_TYPE=$(echo "$METADATA" | jq -r '.contentType')
+
+# Sync with curl
+curl -X POST \
+  -H "Authorization: bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  --data-urlencode "scriptName=$REMOTE_PATH" \
+  --data-urlencode "script=$(cat $FILE_PATH)" \
+  --data-urlencode "contentType=$CONTENT_TYPE" \
+  --data-urlencode "aclRead=$ACL_READ" \
+  --data-urlencode "aclWrite=$ACL_WRITE" \
+  --data-urlencode "aclExecute=$ACL_EXECUTE" \
+  "https://$INSTANCE_URL/vscodePlugin/scripts"
+```
+
+### Step 6: Report Results
 
 Display sync results:
 - ✓ Successfully synced files

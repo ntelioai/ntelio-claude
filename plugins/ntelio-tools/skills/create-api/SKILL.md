@@ -102,7 +102,9 @@ Add the new path entry:
 }
 ```
 
-### Step 4: Create Handler File
+### Step 4: Create Handler File and Metadata
+
+**CRITICAL: Always create both handler and metadata files together.**
 
 Create handler with ES5 boilerplate:
 
@@ -171,14 +173,41 @@ function call(params, pathParams, spec) {
 }
 ```
 
-### Step 5: Remind to Sync
+### Step 5: Create Metadata Files
+
+**CRITICAL: Always create metadata files for handlers.**
+
+For each handler file created, also create a `.{method}.metadata` file in the same directory:
+
+```bash
+# For handler: openapi/handlers/v1/orders/list/post
+# Create:      openapi/handlers/v1/orders/list/.post.metadata
+
+echo '{"acl":{"read":"nobody","write":"nobody","execute":"authenticated"},"contentType":"application/vnd.scriptr-javascript"}' > {handler_dir}/.{method}.metadata
+```
+
+**Metadata templates by endpoint type:**
+
+| Endpoint Type | ACL Execute | Template |
+|--------------|-------------|----------|
+| Protected API (default) | `authenticated` | `{"acl":{"read":"nobody","write":"nobody","execute":"authenticated"},"contentType":"application/vnd.scriptr-javascript"}` |
+| Public webhook/API | `anonymous` | `{"acl":{"read":"nobody","write":"nobody","execute":"anonymous"},"contentType":"application/vnd.scriptr-javascript"}` |
+
+**For OpenAPI spec files**, create metadata too:
+```bash
+echo '{"acl":{"read":"anonymous","write":"nobody","execute":"nobody"},"contentType":"application/json"}' > {spec_dir}/.{collection}.json.metadata
+```
+
+### Step 6: Remind to Sync
 
 After creating files, remind user:
 
 ```
 Files created:
 - {spec_path}
+- {spec_path}.metadata (if new spec)
 - {handler_path}
+- {handler_path}.metadata
 
 To deploy, run:
 /sync {spec_path} {handler_path}
