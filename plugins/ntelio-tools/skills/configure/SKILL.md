@@ -1,3 +1,9 @@
+---
+name: configure
+description: Add configuration values to the ntelio platform. Use when the user wants to add config values, API keys, secrets, or feature settings.
+allowed-tools: Read, Edit, Write, Glob
+---
+
 # Configure Skill
 
 Add configuration values to the ntelio platform's 3-layer configuration system.
