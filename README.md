@@ -6,7 +6,7 @@ A Claude Code plugin for developing applications on the ntelio platform (Scriptr
 
 ```bash
 # Add the marketplace (one-time)
-claude plugin marketplace add legatoloco/ntelio-claude
+claude plugin marketplace add ntelioai/ntelio-claude
 
 # Install the plugin
 claude plugin install ntelio-tools@ntelio-claude
