@@ -248,12 +248,46 @@ const stripeKey = CONFIG.stripe.publishableKey;  // Safe - publishable key only
 const currency = CONFIG.stripe.currency;
 ```
 
+## Important: Client vs Server Config Loading
+
+The config system returns **different sections** depending on context:
+
+- **Server-side**: Returns full config (all sections)
+- **Client-side**: Returns **only the `client` section**
+
+This means if a value is needed by **both** client and server, it must appear in **both sections**:
+
+```javascript
+// CONFIG.APP
+var CONFIG = {
+    server: {
+        stripe: {
+            currency: "{{STRIPE_CURRENCY}}"  // Server needs this
+        }
+    },
+    client: {
+        stripe: {
+            currency: "{{STRIPE_CURRENCY}}"  // Client also needs this (same placeholder!)
+        }
+    }
+}
+```
+
+**When to duplicate:**
+| Scenario | Server Section | Client Section |
+|----------|---------------|----------------|
+| Only server needs it | Yes | No |
+| Only client needs it | No | Yes |
+| Both need it | Yes | Yes (same placeholder) |
+| Secret (API key) | Yes | **NEVER** |
+
 ## Security Rules
 
 1. **NEVER put secrets in `ENV` (base file)** - it's versioned
 2. **NEVER put secret keys in `client.*`** - exposed to browser
 3. **ALWAYS add new values to `ENV.template`** - documentation for team
 4. **Use `{{PLACEHOLDER}}`** syntax in CONFIG files, never hardcode values
+5. **Duplicate non-secret values** in both sections if needed by both client and server
 
 ## Common Patterns
 

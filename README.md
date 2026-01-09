@@ -29,6 +29,7 @@ Skills are **automatically activated** by Claude when your request matches the s
 | `create-api` | Ask to create a new API endpoint or REST route |
 | `create-fcbo` | Ask to create a business object, entity, or data model |
 | `prd-writer` | Ask to write a PRD or document requirements |
+| `configure` | Ask to add config values, API keys, or feature settings |
 
 ## Usage Examples
 
@@ -49,6 +50,9 @@ Just describe what you want - Claude will use the appropriate skill:
 
 "Write a PRD for the user authentication feature"
 → Claude uses prd-writer skill
+
+"Add Stripe API key to the config"
+→ Claude uses configure skill
 ```
 
 ## Plugin Structure
@@ -63,15 +67,11 @@ ntelio-claude/                          # Marketplace
 │       │   └── plugin.json             # Plugin manifest
 │       └── skills/                     # Auto-invoked skills
 │           ├── sync/
-│           │   └── SKILL.md
 │           ├── test-api/
-│           │   └── SKILL.md
 │           ├── create-api/
-│           │   └── SKILL.md
 │           ├── create-fcbo/
-│           │   └── SKILL.md
-│           └── prd-writer/
-│               └── SKILL.md
+│           ├── prd-writer/
+│           └── configure/
 ├── agents/                             # Agent definitions
 │   └── ntelioui-developer.md
 ├── docs/                               # Documentation
