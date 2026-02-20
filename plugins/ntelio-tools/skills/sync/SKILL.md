@@ -163,7 +163,7 @@ Write(".filename.metadata", '{"acl":{"read":"nobody","write":"nobody","execute":
 
 ### Step 3: Load Credentials
 
-Read credentials from `scriptrExtensionConfig.json` in project root:
+Look for `scriptrExtensionConfig.json` in the project root:
 
 ```json
 {
@@ -172,7 +172,19 @@ Read credentials from `scriptrExtensionConfig.json` in project root:
 }
 ```
 
-If credentials file not found, prompt user to create it.
+**Credential resolution:**
+1. Read `scriptrExtensionConfig.json` from project root
+2. If file not found or missing fields, **ask the user** using AskUserQuestion for the instance URL and access token
+
+**How credentials are used per sync method:**
+- **MCP tool**: You (the agent) must read `scriptrExtensionConfig.json`, extract `instanceUrl` and `accessToken`, and pass them as parameters to the MCP tool call
+- **sync-file.sh**: The script reads `scriptrExtensionConfig.json` on its own — you just run the bash command with the file path, no need to pass credentials
+
+In both cases, **always print the credentials to the user before syncing** for transparency:
+```
+Syncing to: {instanceUrl}
+Token: {first 8 chars}...{last 4 chars}
+```
 
 ### Step 4: Validate Files
 
@@ -183,9 +195,9 @@ For each file path:
 
 ### Step 5: Sync Files
 
-**Method 1: MCP Tool (Recommended)**
+Both sync methods automatically read the `.metadata` file from the same directory as the target file. They extract `contentType` and `acl` (read/write/execute) and send them with the sync request. **You do NOT need to manually read or pass ACL values** — just ensure the `.metadata` file exists (Step 2).
 
-The MCP tool automatically reads the `.metadata` file:
+**Method 1: MCP Tool (Recommended)**
 
 ```
 mcp__scriptr__sync_file({
@@ -196,30 +208,16 @@ mcp__scriptr__sync_file({
 })
 ```
 
-**Method 2: Direct curl (Manual)**
-
-For manual sync with explicit ACL control:
+**Method 2: sync-file.sh (Shell script)**
 
 ```bash
-# Read metadata
-METADATA=$(cat ".filename.ext.metadata")
-ACL_READ=$(echo "$METADATA" | jq -r '.acl.read')
-ACL_WRITE=$(echo "$METADATA" | jq -r '.acl.write')
-ACL_EXECUTE=$(echo "$METADATA" | jq -r '.acl.execute')
-CONTENT_TYPE=$(echo "$METADATA" | jq -r '.contentType')
-
-# Sync with curl
-curl -X POST \
-  -H "Authorization: bearer $ACCESS_TOKEN" \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  --data-urlencode "scriptName=$REMOTE_PATH" \
-  --data-urlencode "script=$(cat $FILE_PATH)" \
-  --data-urlencode "contentType=$CONTENT_TYPE" \
-  --data-urlencode "aclRead=$ACL_READ" \
-  --data-urlencode "aclWrite=$ACL_WRITE" \
-  --data-urlencode "aclExecute=$ACL_EXECUTE" \
-  "https://$INSTANCE_URL/vscodePlugin/scripts"
+./setup/sync/sync-file.sh <file_path>
 ```
+
+- Reads credentials from `scriptrExtensionConfig.json` automatically
+- Reads `.metadata` file and sends ACLs
+- Respects `.scriptrIgnore` patterns
+- Use this when MCP is not available
 
 ### Step 6: Report Results
 
