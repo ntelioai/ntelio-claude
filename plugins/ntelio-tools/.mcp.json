@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "scriptr": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/servers/scriptr/index.js"]
+    }
+  }
+}

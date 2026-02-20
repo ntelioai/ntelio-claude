@@ -1,6 +1,6 @@
 {
   "name": "ntelio-claude",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Development tools for ntelio platform (Scriptr.io backend, ntelioUI frontend, ntelioMiddleware). Includes commands for syncing files, testing APIs, creating endpoints, and building business objects.",
   "author": {
     "name": "ntelio.ai",
