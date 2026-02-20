@@ -1,319 +1,146 @@
 ---
 name: sync
 description: Sync files to Scriptr.io platform. Use when the user wants to deploy, sync, or upload files to their Scriptr.io instance.
-allowed-tools: Read, Write, Bash, Glob, mcp__scriptr__sync_file
+allowed-tools: Read, Write, Glob, Grep, AskUserQuestion, mcp__scriptr__sync_file
 ---
 
-# Scriptr.io File Sync
+# Sync Files to Scriptr.io
 
-This skill syncs local files to Scriptr.io platform for deployment.
+Follow these steps **in order**. Be action-oriented — sync files quickly, only ask questions when information is missing.
 
-## When to Use This Skill
+---
 
-- User says "sync", "deploy", or "upload" files to Scriptr.io
-- After creating or modifying backend scripts/handlers
-- After updating API specs or schemas
-- When user wants to test changes on the server
+## Step 1: Determine file(s) to sync
 
-## Usage Patterns
-
-```
-/sync path/to/file.js
-/sync openapi/handlers/v1/orders/post
-/sync setup/schema/order.xml
-/sync client/pages/*.js
-```
-
-## CRITICAL: Metadata Files
-
-**Before syncing ANY file, ensure its `.metadata` file exists.** The MCP sync tool reads metadata files to determine content type and ACL permissions.
-
-### Why Metadata Matters
-
-| Content Type | Behavior |
-|-------------|----------|
-| `application/vnd.scriptr-javascript` | Server-side script (ES5, executable) |
-| `application/javascript` | Browser JavaScript (ES6, served as static) |
-| `text/html` | HTML page served to browser |
-| `text/css` | CSS stylesheet served to browser |
-
-### Metadata File Format
-
-For file `filename.ext`, create `.filename.ext.metadata` in same directory:
-
-```json
-{"acl":{"read":"anonymous","write":"nobody","execute":"nobody"},"contentType":"application/javascript"}
-```
-
-### ACL Rules
-
-| Permission | `anonymous` | `authenticated` | `nobody` |
-|------------|-------------|-----------------|----------|
-| **read** | Anyone can fetch | Auth required | Cannot read |
-| **execute** | Public endpoint | Protected endpoint | Not an endpoint |
-
-### Metadata by File Type
-
-| File Location | Content Type | ACL Read | ACL Execute |
-|--------------|--------------|----------|-------------|
-| `client/**/*.js` | `application/javascript` | `anonymous` | `nobody` |
-| `**/*.html` | `text/html` | `anonymous` | `nobody` |
-| `**/*.css` | `text/css` | `anonymous` | `nobody` |
-| `openapi/handlers/**/*` | `application/vnd.scriptr-javascript` | `nobody` | `authenticated` |
-| `**/lib/*.js` (server) | `application/vnd.scriptr-javascript` | `nobody` | `nobody` |
-
-### Creating Metadata Files
-
-**ALWAYS create metadata when creating new files:**
-
-```bash
-# Browser JavaScript (client-side)
-echo '{"acl":{"read":"anonymous","write":"nobody","execute":"nobody"},"contentType":"application/javascript"}' > .filename.js.metadata
-
-# Server-side API endpoint
-echo '{"acl":{"read":"nobody","write":"nobody","execute":"authenticated"},"contentType":"application/vnd.scriptr-javascript"}' > .filename.metadata
-
-# Public API endpoint (webhooks)
-echo '{"acl":{"read":"nobody","write":"nobody","execute":"anonymous"},"contentType":"application/vnd.scriptr-javascript"}' > .filename.metadata
-
-# HTML page
-echo '{"acl":{"read":"anonymous","write":"nobody","execute":"nobody"},"contentType":"text/html"}' > .filename.html.metadata
-```
-
-## Workflow
-
-### Step 1: Identify Files to Sync
-
-Parse the user's request to determine:
-- Single file path
-- Multiple file paths (space-separated)
-- Glob pattern (e.g., `*.js`, `handlers/**/*`)
-
-### Step 2: Verify Metadata Files Exist
-
-For each file to sync, check if `.filename.ext.metadata` exists.
-
-**If metadata exists:** Use it as-is.
-
-**If metadata is missing:** Try to infer the correct metadata based on file location and extension:
-
-#### Auto-Create Rules (High Confidence)
-
-| File Pattern | Content Type | ACL | Auto-Create? |
-|-------------|--------------|-----|--------------|
-| `client/**/*.js` | `application/javascript` | read:anonymous, execute:nobody | ✅ Yes |
-| `client/**/*.html` | `text/html` | read:anonymous, execute:nobody | ✅ Yes |
-| `client/**/*.css` | `text/css` | read:anonymous, execute:nobody | ✅ Yes |
-| `static/**/*` | Based on extension | read:anonymous, execute:nobody | ✅ Yes |
-| `**/*.json` | `application/json` | read:anonymous, execute:nobody | ✅ Yes |
-| `**/*.xml` | `text/xml` | read:anonymous, execute:nobody | ✅ Yes |
-| `openapi/handlers/**/*` | `application/vnd.scriptr-javascript` | read:nobody, execute:authenticated | ✅ Yes |
-| `ntelioMiddleware/server/handlers/**/*` | `application/vnd.scriptr-javascript` | read:nobody, execute:authenticated | ✅ Yes |
-| `vscodePlugin/**/*` | `application/vnd.scriptr-javascript` | read:nobody, execute:authenticated | ✅ Yes |
-| `setup/**/*` (no ext) | `application/vnd.scriptr-javascript` | read:nobody, execute:authenticated | ✅ Yes |
-
-#### Ask User (Uncertain Cases)
-
-For files that don't match the patterns above, **ask the user** using AskUserQuestion:
+- **If the user provided a path** (e.g. `/sync openapi/handlers/v1/orders/post`) → use it directly.
+- **If the user provided a glob** (e.g. `/sync client/pages/*.js`) → resolve it with the Glob tool.
+- **If no path was given** (`/sync` with no args) → ask:
 
 ```
-File: path/to/unknown/file.js
-
-I need to create a metadata file for this. What type of file is this?
-
+AskUserQuestion: "What file or pattern would you like to sync?"
 Options:
-1. Browser JavaScript (ES6, served to browser)
-2. Server-side Scriptr.io script (ES5, API endpoint - protected)
-3. Server-side Scriptr.io script (ES5, API endpoint - public)
-4. Server-side library (ES5, not directly callable)
+- Let user type a path or glob
 ```
 
-Then ask about ACL if needed:
-```
-Should this file be:
-1. Public (anyone can access/execute)
-2. Protected (requires authentication)
-3. Internal only (not directly accessible)
-```
+---
 
-#### Auto-Create Metadata Code
+## Step 2: Find credentials
 
-When auto-creating, use Write tool:
-
-```javascript
-// Browser resource (client-side JS, HTML, CSS)
-Write(".filename.ext.metadata", '{"acl":{"read":"anonymous","write":"nobody","execute":"nobody"},"contentType":"application/javascript"}')
-
-// Server-side API handler (protected)
-Write(".filename.metadata", '{"acl":{"read":"nobody","write":"nobody","execute":"authenticated"},"contentType":"application/vnd.scriptr-javascript"}')
-
-// Server-side API handler (public webhook)
-Write(".filename.metadata", '{"acl":{"read":"nobody","write":"nobody","execute":"anonymous"},"contentType":"application/vnd.scriptr-javascript"}')
-
-// Server-side library (not an entry point)
-Write(".filename.metadata", '{"acl":{"read":"nobody","write":"nobody","execute":"nobody"},"contentType":"application/vnd.scriptr-javascript"}')
-```
-
-**Always inform the user when metadata is auto-created:**
-```
-⚠️ Created missing metadata file: .filename.ext.metadata
-   Type: Browser JavaScript
-   ACL: read=anonymous, execute=nobody
-```
-
-### Step 3: Load Credentials
-
-Look for `scriptrExtensionConfig.json` in the project root:
+Search for `scriptrExtensionConfig.json` starting from the current working directory, then walking up parent directories to the git root. The file contains:
 
 ```json
 {
-  "instanceUrl": "your-instance.scriptrapps.io",
-  "accessToken": "your-access-token"
+  "instanceUrl": "myapp.scriptrapps.io",
+  "accessToken": "the-token"
 }
 ```
 
-**Credential resolution:**
-1. Read `scriptrExtensionConfig.json` from project root
-2. If file not found or missing fields, **ask the user** using AskUserQuestion for the instance URL and access token
+**If found** → read `instanceUrl` and `accessToken` silently. Do NOT ask the user anything.
 
-**How credentials are used per sync method:**
-- **MCP tool**: You (the agent) must read `scriptrExtensionConfig.json`, extract `instanceUrl` and `accessToken`, and pass them as parameters to the MCP tool call
-- **sync-file.sh**: The script reads `scriptrExtensionConfig.json` on its own — you just run the bash command with the file path, no need to pass credentials
+**If NOT found** → use AskUserQuestion to collect both values:
 
-In both cases, **always print the credentials to the user before syncing** for transparency:
+```
+AskUserQuestion: "I couldn't find scriptrExtensionConfig.json. What is your Scriptr.io instance URL?"
+  Options: (let user type, e.g. "myapp.scriptrapps.io")
+
+AskUserQuestion: "What is your access token?"
+  Options: (let user type)
+```
+
+Before syncing, print credentials for transparency:
 ```
 Syncing to: {instanceUrl}
 Token: {first 8 chars}...{last 4 chars}
 ```
 
-### Step 4: Validate Files
+---
 
-For each file path:
-1. Check if file exists
-2. Check if file matches `.scriptrIgnore` patterns (skip if matched)
-3. Determine the remote path (project-relative)
+## Step 3: Validate files exist
 
-### Step 5: Sync Files
+For each resolved file path:
+1. Confirm the file exists (Glob or Read).
+2. Skip files matching `.scriptrIgnore` patterns (default ignores: `node_modules/`, `.git/`, `.DS_Store`, `*.log`, `scriptrExtensionConfig.json`, `.claude/`).
+3. If a file doesn't exist, report it and continue with the rest.
 
-Both sync methods automatically read the `.metadata` file from the same directory as the target file. They extract `contentType` and `acl` (read/write/execute) and send them with the sync request. **You do NOT need to manually read or pass ACL values** — just ensure the `.metadata` file exists (Step 2).
+---
 
-**Method 1: MCP Tool (Recommended)**
+## Step 4: Ensure metadata
+
+For each file `dir/filename.ext`, check if `dir/.filename.ext.metadata` exists.
+
+**If metadata exists** → use it as-is.
+
+**If metadata is missing** → auto-create it using these rules:
+
+| File Pattern | contentType | ACL (read / execute) |
+|---|---|---|
+| `client/**/*.js` | `application/javascript` | anonymous / nobody |
+| `**/*.html` | `text/html` | anonymous / nobody |
+| `**/*.css` | `text/css` | anonymous / nobody |
+| `**/*.json` | `application/json` | anonymous / nobody |
+| `**/*.xml` | `text/xml` | anonymous / nobody |
+| `static/**/*` | by extension | anonymous / nobody |
+| `openapi/handlers/**/*` | `application/vnd.scriptr-javascript` | nobody / authenticated |
+| `ntelioMiddleware/server/handlers/**/*` | `application/vnd.scriptr-javascript` | nobody / authenticated |
+| `vscodePlugin/**/*` | `application/vnd.scriptr-javascript` | nobody / authenticated |
+| `setup/**/*` (no ext) | `application/vnd.scriptr-javascript` | nobody / authenticated |
+| `**/lib/*.js` (server) | `application/vnd.scriptr-javascript` | nobody / nobody |
+
+All metadata files use `"write":"nobody"`.
+
+**Metadata file format:**
+```json
+{"acl":{"read":"VALUE","write":"nobody","execute":"VALUE"},"contentType":"VALUE"}
+```
+
+When auto-creating, inform the user:
+```
+Created metadata: .filename.ext.metadata (type: application/javascript, execute: nobody)
+```
+
+**If the file doesn't match any pattern** → ask via AskUserQuestion:
+```
+AskUserQuestion: "What type of file is {path}?"
+Options:
+1. "Browser resource" — JS/HTML/CSS served to browser (read: anonymous, execute: nobody)
+2. "API endpoint (protected)" — server-side, requires auth (read: nobody, execute: authenticated)
+3. "API endpoint (public)" — server-side webhook, no auth (read: nobody, execute: anonymous)
+4. "Server library" — server-side, not directly callable (read: nobody, execute: nobody)
+```
+
+---
+
+## Step 5: Sync via MCP
+
+For each file, call:
 
 ```
 mcp__scriptr__sync_file({
   file_path: "/absolute/path/to/file",
-  remote_path: "relative/path/on/scriptr",
+  remote_path: "relative/path/from/project/root",
   instance_url: "instance.scriptrapps.io",
   access_token: "token"
 })
 ```
 
-**Method 2: sync-file.sh (Shell script)**
+The remote path equals the file's path relative to the project root (e.g. `client/pages/Store.js` → `client/pages/Store.js`).
 
-```bash
-./setup/sync/sync-file.sh <file_path>
+The MCP tool reads the `.metadata` file automatically to send ACL and content type — you do NOT need to pass those.
+
+---
+
+## Step 6: Report results
+
+Show a summary:
+```
+✓ synced: openapi/handlers/v1/orders/post
+✓ synced: openapi/handlers/v1/orders/get
+✗ failed: path/to/broken.js — [error message]
+
+2/3 files synced successfully.
 ```
 
-- Reads credentials from `scriptrExtensionConfig.json` automatically
-- Reads `.metadata` file and sends ACLs
-- Respects `.scriptrIgnore` patterns
-- Use this when MCP is not available
-
-### Step 6: Report Results
-
-Display sync results:
-- ✓ Successfully synced files
-- ✗ Failed files with error messages
-- Total count
-
-## Path Resolution Rules
-
-| Local Path | Remote Path |
-|------------|-------------|
-| `client/pages/Store.js` | `client/pages/Store.js` |
-| `openapi/handlers/v1/orders/post` | `openapi/handlers/v1/orders/post` |
-| `setup/schema/order.xml` | `setup/schema/order.xml` |
-| `ntelioMiddleware/server/handlers/v1/waba/list/post` | `ntelioMiddleware/server/handlers/v1/waba/list/post` |
-
-Files sync to their exact relative path from project root.
-
-## Ignore Patterns
-
-Respect `.scriptrIgnore` file (gitignore syntax):
-
-Default ignores:
-- `node_modules/`
-- `.git/`
-- `.DS_Store`
-- `*.log`
-- `scriptrExtensionConfig.json`
-- `.claude/`
-
-## Error Handling
-
-### Missing Credentials
+If any synced files are API endpoints (`openapi/handlers/**` or similar), suggest:
 ```
-Error: scriptrExtensionConfig.json not found.
-
-Create this file in your project root:
-{
-  "instanceUrl": "your-instance.scriptrapps.io",
-  "accessToken": "your-access-token"
-}
+Use /test-api to verify your endpoints.
 ```
-
-### File Not Found
-```
-Error: File not found: path/to/missing/file.js
-```
-
-### Sync Failed
-```
-Error syncing path/to/file.js: [error message from Scriptr.io]
-```
-
-## Examples
-
-### Sync Single File
-```
-User: /sync openapi/handlers/v1/orders/post
-Assistant: Syncing file to Scriptr.io...
-✓ Synced: openapi/handlers/v1/orders/post → openapi/handlers/v1/orders/post
-```
-
-### Sync Multiple Files
-```
-User: /sync openapi/specs/v1/orders.json openapi/handlers/v1/orders/post openapi/handlers/v1/orders/get
-Assistant: Syncing 3 files to Scriptr.io...
-✓ openapi/specs/v1/orders.json
-✓ openapi/handlers/v1/orders/post
-✓ openapi/handlers/v1/orders/get
-All 3 files synced successfully.
-```
-
-### Sync with Glob Pattern
-```
-User: /sync openapi/handlers/v1/orders/*
-Assistant: Found 4 files matching pattern...
-✓ openapi/handlers/v1/orders/get
-✓ openapi/handlers/v1/orders/post
-✓ openapi/handlers/v1/orders/put
-✓ openapi/handlers/v1/orders/delete
-All 4 files synced successfully.
-```
-
-## Post-Sync Verification
-
-After syncing, suggest testing:
-```
-Files synced. To test the endpoint:
-curl -X POST "https://instance.scriptrapps.io/openapi/handlers/v1/orders?debug_mode=true" \
-  -H "Authorization: Bearer YOUR_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{}'
-```
-
-## Related Skills
-
-- `/test-api` - Test synced endpoints
-- `/create-api` - Create new API endpoints (then sync)
