@@ -27,23 +27,21 @@ chmod +x .claude/skills/client-debug/serve.sh
 
 ### 1a. Check Playwright Installation
 
+Playwright is installed **globally**. Node doesn't resolve global packages by default, so always use `NODE_PATH` when running Playwright scripts.
+
 Run this check first:
 
 ```bash
-node -e "require('playwright')" 2>&1
+NODE_PATH=$(npm root -g) node -e "require('playwright')" 2>&1
 ```
 
 **If Playwright is NOT installed**, stop and tell the user:
 
-> Playwright is not installed. It's required for client-side debugging.
->
-> Run these commands from the project root:
+> Playwright is not installed globally. Install it with:
 > ```bash
-> npm install playwright
+> npm install -g playwright
 > npx playwright install
 > ```
->
-> See the full setup guide: `docs/guides/playwright-mcp-setup.md`
 
 Do NOT proceed until Playwright is available.
 
@@ -176,13 +174,15 @@ run().catch(e => { console.error(e); process.exit(1); });
 
 ### Script Execution
 
-1. Write the script to a temp file in the **project root** (NOT scratchpad — Playwright needs to resolve from `node_modules`)
-2. Run it: `node /path/to/project/debug-test.mjs`
+Playwright is installed globally. Use `NODE_PATH` so Node can resolve it from any directory:
+
+1. Write the script to a temp file (e.g., `/tmp/_debug-test.mjs`)
+2. Run it: `NODE_PATH=$(npm root -g) node /tmp/_debug-test.mjs`
 3. Read the output
 4. Read the screenshot(s) to visually inspect
-5. Clean up the temp script: `rm /path/to/project/debug-test.mjs`
+5. Clean up the temp script: `rm /tmp/_debug-test.mjs`
 
-**IMPORTANT:** The test script MUST be saved inside the project that has `node_modules/playwright` installed, otherwise the import will fail. Use a predictable name like `_debug-test.mjs` and always clean up after.
+**IMPORTANT:** Always prefix `node` with `NODE_PATH=$(npm root -g)` when running Playwright scripts. This lets Node find the global Playwright package from any working directory. The script can be saved anywhere (e.g., `/tmp/`) — it does NOT need to be inside a project with a local `node_modules`.
 
 ## Step 4: Analyze and Report
 
