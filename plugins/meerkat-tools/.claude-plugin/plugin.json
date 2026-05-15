@@ -1,0 +1,9 @@
+{
+  "name": "meerkat-tools",
+  "version": "1.0.0",
+  "description": "Feature development workflow skills — PRD, spec, implement, review.",
+  "author": {
+    "name": "ntelio.ai",
+    "email": "walid@ntelio.ai"
+  }
+}

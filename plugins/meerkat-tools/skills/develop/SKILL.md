@@ -8,7 +8,8 @@ argument: optional issue number or feature description (e.g. "38" or "hypothesis
 
 # Develop Feature
 
-This skill orchestrates the full development workflow: PRD → Spec → Fix.
+This skill orchestrates the full development workflow for an **ntelio platform project** (Scriptr.io
+backend + ntelioMiddleware, ntelioUI frontend): PRD → Spec → Fix.
 It enforces the model — you cannot skip steps. Each phase must be completed and approved before the next begins.
 
 ## Step 0 — Identify the feature
@@ -63,11 +64,14 @@ Tell the user: "Spec approved. Starting implementation."
 
 Then run the `/fix` workflow:
 1. Create branch
-2. Implement all phases (backend → pipeline → client) without stopping
-3. Test: curl for API, Playwright for new pages
-4. Independent review agent
-5. Commit, push, open PR
-6. Comment on issue
+2. Implement all phases (backend → pipeline → client) without stopping — ES5 backend, `.metadata`
+   companion for every new file, route work to `scriptrio-developer` / `ntelioui-developer` /
+   `pipeline-developer`
+3. **Sync to Scriptr.io** — nothing is testable until synced
+4. Test: curl against the live instance (with `debug_mode=true`) for API, `/client-debug` for new pages
+5. Independent review agent (spec match + metadata/ACL audit + ES5 check + regressions)
+6. Commit, push, open PR
+7. Comment on issue
 
 ## Step 4 — Done
 

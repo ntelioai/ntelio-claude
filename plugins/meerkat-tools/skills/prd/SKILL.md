@@ -13,8 +13,10 @@ argument: optional issue number or feature name (e.g. "30" or "geography markers
 Search for existing material about this feature. Run these in parallel:
 
 1. **GitHub issue** — If `$ARGUMENTS` is a number, run `gh issue view $ARGUMENTS --json title,body,comments,labels`. If it's text, search: `gh issue list --search "$ARGUMENTS" --json number,title,body --limit 5`
-2. **Docs** — Search `docs/` for related files: `grep -rl "$ARGUMENTS" docs/` and check `docs/roadmap/` for matching plans
-3. **Code** — Quick scan for existing implementation: search for related files, routes, DB tables, widgets
+2. **Docs** — Search `docs/` for related files: `grep -rl "$ARGUMENTS" docs/`, check `docs/prd/` for an
+   existing PRD and `docs/roadmap/` for matching plans. Also read **CLAUDE.md** for project context.
+3. **Code** — Quick scan for existing implementation: related schemas in `setup/schema/`, API specs in
+   `openapi/specs/`, pipeline workflows in `pipeline/`, client pages/widgets in `client/`.
 
 Compile what you find into a **context brief**: what's known, what's built, what's missing.
 
@@ -57,7 +59,9 @@ If wireframes are needed, create them in the PRD using ASCII art. Show the key s
 
 ## Step 3 — Write the PRD
 
-Save to `docs/prd/PRD-{feature-slug}.md`. Structure:
+Save **in the project** at `docs/prd/PRD-{feature-slug}.md` — never to an external Claude plans
+directory. Keeping the PRD in-repo means it can be referenced from the issue and revisited later.
+Structure:
 
 ```markdown
 # PRD: {Feature Name}
@@ -100,8 +104,8 @@ That's it. No competitive analysis, no appendix, no market context, no changelog
 
 ## Step 4 — Link to GitHub issue
 
-If a GitHub issue exists:
-- Add a comment linking to the PRD: `gh issue comment {number} --body "PRD: docs/prd/PRD-{slug}.md"`
+The PRD MUST be referenced from a GitHub issue so it is findable later.
+- If a GitHub issue exists, add a comment linking to the PRD: `gh issue comment {number} --body "PRD: docs/prd/PRD-{slug}.md"`
 - If no issue exists, create one: `gh issue create --title "{feature name}" --body "PRD: docs/prd/PRD-{slug}.md\n\n{1-line summary}"`
 
 ## Step 5 — Review gate
@@ -126,7 +130,7 @@ If the user requests changes, update the PRD and re-run the review gate.
 ## Important
 
 - Keep it lightweight. A PRD should take 5-10 minutes, not an hour.
-- The PRD is a communication tool for the /plan skill — write for a technical reader.
+- The PRD is a communication tool for the `/spec` skill — write for a technical reader.
 - Don't invent requirements the user didn't express. When in doubt, ask.
 - Don't duplicate information already in the GitHub issue — reference it.
-- If the feature is trivial (< 1 day of work, no UI, no ambiguity), tell the user a PRD is overkill and suggest going straight to /plan or /fix.
+- If the feature is trivial (< 1 day of work, no UI, no ambiguity), tell the user a PRD is overkill and suggest going straight to `/spec` or `/fix`.
