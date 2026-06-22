@@ -1,0 +1,9 @@
+{
+  "name": "commercegenie-tools",
+  "version": "0.1.0",
+  "description": "CommerceGenie demo & operations tools — quickly stand up a bot catalog from any menu link (image OCR, JSON feed, or HTML page) and load it into the catalog via the dataObject API.",
+  "author": {
+    "name": "ntelio.ai",
+    "email": "walid@ntelio.ai"
+  }
+}
