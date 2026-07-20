@@ -72,7 +72,7 @@ ntelio-claude/                          # Marketplace
 │           ├── create-fcbo/
 │           ├── prd-writer/
 │           └── configure/
-├── agents/                             # Agent definitions
+├── plugins/<plugin>/agents/            # Agent definitions (shipped with each plugin)
 │   └── ntelioui-developer.md
 ├── docs/                               # Documentation
 └── README.md

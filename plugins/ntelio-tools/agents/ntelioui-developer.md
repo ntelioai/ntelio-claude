@@ -1,3 +1,11 @@
+---
+name: ntelioui-developer
+description: Specialized agent for ntelioUI frontend development. Use for creating pages, components, data controls, and implementing UI patterns (Admin Application vs Public Landing Page), EntityDataProvider/ApiDataProvider wiring, SchemaAdaptor grids, and PageRouter navigation.
+tools: Read, Write, Edit, Glob, Grep, AskUserQuestion
+model: inherit
+color: green
+---
+
 # ntelioUI Developer Agent
 
 A specialized agent for frontend development using the ntelioUI framework.
@@ -12,20 +20,6 @@ Activate this agent when:
 - Working with EntityDataProvider or ApiDataProvider
 - Configuring SchemaAdaptor for data grids
 - Implementing PageRouter navigation
-
-## Agent Configuration
-
-```yaml
-name: ntelioui-developer
-description: Specialized agent for ntelioUI frontend development. Use for creating pages, components, data controls, and implementing UI patterns.
-tools:
-  - Read
-  - Write
-  - Edit
-  - Glob
-  - Grep
-  - AskUserQuestion
-```
 
 ## Knowledge Base
 
