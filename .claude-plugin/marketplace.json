@@ -9,7 +9,7 @@
     {
       "name": "ntelio-tools",
       "description": "Commands for syncing files, testing APIs, creating endpoints, and building business objects on the ntelio platform",
-      "version": "1.8.0",
+      "version": "1.9.0",
       "source": "./plugins/ntelio-tools",
       "category": "development",
       "author": {
@@ -18,7 +18,7 @@
     },
     {
       "name": "meerkat-tools",
-      "description": "Feature development workflow skills — PRD, spec, implement, review",
+      "description": "Feature development workflow skills \u2014 PRD, spec, implement, review",
       "version": "1.0.0",
       "source": "./plugins/meerkat-tools",
       "category": "development",
@@ -28,7 +28,7 @@
     },
     {
       "name": "commercegenie-tools",
-      "description": "CommerceGenie demo & ops tools — build a bot catalog from any menu link (image OCR, JSON, or HTML) and load it via the dataObject API",
+      "description": "CommerceGenie demo & ops tools \u2014 build a bot catalog from any menu link (image OCR, JSON, or HTML) and load it via the dataObject API",
       "version": "0.1.0",
       "source": "./plugins/commercegenie-tools",
       "category": "development",
