@@ -23,6 +23,10 @@ Create a migration whenever you change **any** of the following:
 
 **Rule of thumb**: If the resource was created or initialized during account provisioning, changing it on the provisioner only affects new accounts. Existing accounts need a migration.
 
+**The flip side — init comes first**: a migration propagates a change; it does not replace registration. If you are creating a NEW store/schema/channel/group, first register it in `setup/INIT.APP` / `INIT.DEFAULTS` (use `/add-setup-resource`) so new accounts get it, THEN write the migration for existing accounts. Both ship in the same PR. A one-off `setup/apply*` script is never a substitute for either — fold it in and delete it before merge.
+
+**Parent-only resources are out of scope**: resources that live only on the provisioner (cross-tenant stores, service users) go in `setup/initParent`, not in migrations — migrations run on child accounts only.
+
 ## Migration Naming Convention
 
 ```
@@ -41,6 +45,8 @@ YYYYMMDD_NNN_descriptive_name
 ```
 
 ## Step 1: Determine the Next Migration Number
+
+**On a long-lived branch, check `origin/main`'s manifest too** (`git show origin/main:deployment/migration/manifest`) — numbering from a stale branch manifest causes sequence collisions at merge time. Take the highest number across both and continue from there.
 
 1. Read `deployment/migration/manifest`
 2. Find the last name in the `scripts` array

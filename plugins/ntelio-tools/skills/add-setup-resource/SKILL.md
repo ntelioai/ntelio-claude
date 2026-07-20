@@ -16,6 +16,17 @@ This skill guides you through adding new infrastructure resources to the initial
 - Setting up real-time features that need messaging channels
 - Planning infrastructure for a new business object
 
+## Two Non-Negotiable Rules
+
+1. **The init entry ships in the SAME commit as the code that uses the resource.** A resource whose only provisioning is a one-off `setup/apply*` script is a bug: new accounts will never get it. One-off apply scripts are dev-time conveniences only — fold them into init (+ migration) and delete them before merge.
+2. **Existing child accounts do NOT receive init changes.** Pair every init change with a migration in the same PR — use the `/create-migration` skill.
+
+## Child vs Parent Resources
+
+This skill covers **child-account (tenant) resources** — the ones INIT.APP/INIT.DEFAULTS provision into every business account.
+
+**Parent/provisioner-only resources** (cross-tenant stores like `BusinessAccounts` or the MCP OAuth stores, service users, platform webhook config) do NOT belong in INIT.APP or in migrations — child accounts must never host them. Their home is **`setup/initParent`**: add an idempotent section (create-or-tolerate-exists, like the existing ones) and re-run `initParent` on the provisioner to apply. If your resource is only ever read/written by handlers that execute in the parent's own data context (provisioning, unified payment, ingress routing/demux, operator tooling), it's a parent resource.
+
 ## Quick Reference
 
 ### Files to Modify
@@ -27,6 +38,7 @@ This skill guides you through adding new infrastructure resources to the initial
 | Group | N/A | `setup/INIT.APP` | N/A |
 | Channel | `ENV` | `setup/INIT.APP` | N/A |
 | TS Store | `ENV` | `setup/INIT.APP` | `setup/schema/ts/*` |
+| Parent-only resource | `ENV` (if configurable) | `setup/initParent` | `setup/schema/*.xml` |
 
 ### Resource Naming Conventions
 
