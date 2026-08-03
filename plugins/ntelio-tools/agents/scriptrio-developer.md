@@ -60,6 +60,13 @@ Every platform resource has exactly one canonical home. Provisioning must never 
 - **A store is not a type.** Stores hold many document types, selected with
   `schema="..."`. Prefer a new schema in an existing store over a new store;
   accounts have a per-account store cap.
+- **Always put `schema="..."` in a query against a shared store**, even if it
+  holds one type today — a query without it returns every type in the store.
+  Before adding a type to an existing store, grep every query on that store and
+  fix any that lack the predicate, in the same PR. Otherwise you ship working
+  code that breaks code you never touched — your tests pass, your diff is clean,
+  and someone else's query starts returning wrong rows with no error. A reviewer
+  cannot see it in your diff, so catch it while writing.
 - Always check existing patterns in the codebase before creating new approaches
 - Reference Scriptr.io module documentation for proper API usage
 - Consider multi-tenancy implications in CommerceGenie context
