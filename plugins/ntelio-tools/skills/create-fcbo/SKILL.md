@@ -30,7 +30,22 @@ Prompt for:
 
 1. **Object name** (singular, PascalCase): e.g., Order, Product, Receipt
 2. **Fields** (name:type): e.g., "name:string, amount:numeric, status:string"
-3. **Store name**: e.g., OrdersStore (default: {Object}sStore)
+3. **Store**: which **EXISTING** store will hold it?
+
+   Do NOT default to a new `{Object}sStore`. Stores and schemas are independent:
+   a store holds MANY document types, separated at query time by `schema="..."`.
+   A store is a *database* in the NoSQL sense — not a table, and not a type.
+   Accounts have a per-account store cap, and projects hit it (commerceGenie is
+   at ~40 stores, almost all one-schema, for exactly this reason).
+
+   Ask, in order:
+   1. Which existing store already holds the most closely related data?
+   2. Does `schema="{object}"` in that store work? (It almost always does.)
+   3. Is this master–detail with something? Co-locating lets ONE query load
+      both sides (`schema="master" OR schema="detail"`), then join in script.
+
+   Propose a NEW store only for a genuinely different lifecycle, ACL regime, or
+   scale — and state the reason out loud so the user can reject it.
 4. **Include UI page?**: Yes/No
 5. **Location**: Project-specific or middleware
 

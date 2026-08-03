@@ -46,6 +46,20 @@ Every platform resource has exactly one canonical home. Provisioning must never 
 - Implement appropriate security measures for API endpoints
 
 **When developing:**
+- **Before writing any function that reads a document store, search for an existing accessor and read it.** Not "check patterns" — run the search:
+  `grep -rn "<storeNameConstant>" --include=* openapi app ntelioMiddleware/server`
+  Reuse what you find, or extend it. Reimplementing a read that already exists is
+  how this codebase ended up with four separate paginated catalog scans, each with
+  a different page size and cap, three of which silently truncated.
+- **Push filtering, sorting, paging and counting into the query — not into JS.**
+  `resultsPerPage` defaults to 50 and a capped query truncates SILENTLY. Use
+  `count: true` for totals and `pageNumber` for paging. A predicate on a
+  non-string field needs a type hint (`price<numeric> <= 5.49`); without it the
+  query matches NOTHING and reports no error. Scan the whole store only for
+  something a query genuinely cannot express, and say why in a comment.
+- **A store is not a type.** Stores hold many document types, selected with
+  `schema="..."`. Prefer a new schema in an existing store over a new store;
+  accounts have a per-account store cap.
 - Always check existing patterns in the codebase before creating new approaches
 - Reference Scriptr.io module documentation for proper API usage
 - Consider multi-tenancy implications in CommerceGenie context
