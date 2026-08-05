@@ -109,10 +109,28 @@ Every platform resource has exactly one canonical home. Provisioning must never 
   re-query to see if someone raced you, delete it if so*: more code, and only
   correct if the query index is read-your-writes consistent.
 
+  To serialize on a contended row, `get()` takes a `lock` flag, held until
+  commit/rollback:
+
+  ```javascript
+  var ts = apsdb.beginTransaction();
+  try {
+      var room = store.get(roomKey, { lock: true });
+      // ... read-check-write, safe from concurrent modification ...
+      ts.commit();
+  } catch (e) { ts.rollback(); throw e; }
+  ```
+
+  **Only `get()` can lock — `query()` cannot**, so you must know the key. If the
+  contended row is found by a query, query unlocked first, then
+  `get(key, {lock:true})` and re-check inside the transaction. Passing `lock`
+  and `versionNumber` together throws — pessimistic and optimistic are a choice;
+  `meta.latestVersion` is the optimistic one (the save fails if the doc changed
+  underneath you). Locking several rows in a loop can deadlock if two requests
+  take them in different orders — use a deterministic order, or lock one parent row.
+
   Copy `ntelioMiddleware/server/lib/ecommerce/CartManager._createOrderTransaction`;
-  see also `server/handlers/v1/contacts/key/{put,delete}`. For the weaker
-  single-document case, `meta.latestVersion` fails the save if the doc changed
-  underneath you.
+  see also `server/handlers/v1/contacts/key/{put,delete}`.
 - **A store is not a type.** Stores hold many document types, selected with
   `schema="..."`. Prefer a new schema in an existing store over a new store;
   accounts have a per-account store cap.
