@@ -53,10 +53,33 @@ Every platform resource has exactly one canonical home. Provisioning must never 
   a different page size and cap, three of which silently truncated.
 - **Push filtering, sorting, paging and counting into the query — not into JS.**
   `resultsPerPage` defaults to 50 and a capped query truncates SILENTLY. Use
-  `count: true` for totals and `pageNumber` for paging. A predicate on a
-  non-string field needs a type hint (`price<numeric> <= 5.49`); without it the
-  query matches NOTHING and reports no error. Scan the whole store only for
-  something a query genuinely cannot express, and say why in a comment.
+  `count: true` for totals and `pageNumber` for paging. Scan the whole store only
+  for something a query genuinely cannot express, and say why in a comment.
+- **Declare the real field type, and hint every predicate that uses it.** A field's
+  type is one of exactly five: `string`, `text`, `numeric`, `date`, `geospatial`.
+  Anything untyped defaults to `string`.
+
+  A predicate compares as `string` unless hinted — *regardless of the schema* — and
+  a mismatch returns zero rows with `status: "success"`. No error. It fails in both
+  directions:
+
+  ```javascript
+  query: 'price <= 5.49'                    // ❌ nothing — needs <numeric>
+  query: 'checkOut >= "2026-08-05"'         // ❌ nothing on a type="date" field
+  query: 'price<numeric> <= 5.49'           // ✓
+  query: 'checkOut<date> >= "2026-08-05"'   // ✓  (works for `=` too, not just ranges)
+  ```
+
+  So **changing a field's type breaks every query that touches it** — grep the field
+  name and fix all predicates in the same commit. Get the type right before first
+  deploy; afterwards it is a data migration across every child account.
+
+  `date` accepts only `yyyy-MM-dd` or `yyyy-MM-dd'T'HH:mm:ssZ` where `Z` is a numeric
+  offset (`+0000`). JavaScript's `toISOString()` is **rejected on save** — it emits
+  milliseconds and a literal `Z`. Format it yourself or keep the field a `string`.
+
+  It is angle brackets. `field[date]` fails; so does `<date:format>` — the `:`
+  modifier exists only in `sort`, where it is `ASC`/`DESC`.
 - **A store is not a type.** Stores hold many document types, selected with
   `schema="..."`. Prefer a new schema in an existing store over a new store;
   accounts have a per-account store cap.
