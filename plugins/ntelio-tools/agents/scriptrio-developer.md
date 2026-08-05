@@ -78,8 +78,16 @@ Every platform resource has exactly one canonical home. Provisioning must never 
   offset (`+0000`). JavaScript's `toISOString()` is **rejected on save** — it emits
   milliseconds and a literal `Z`. Format it yourself or keep the field a `string`.
 
-  It is angle brackets. `field[date]` fails; so does `<date:format>` — the `:`
-  modifier exists only in `sort`, where it is `ASC`/`DESC`.
+  The hint is angle brackets with nothing after the type — `checkOut<date>`. Two
+  near-misses both fail outright:
+  - `checkOut[date]` — the square-bracket form declared by apstrata's
+    `queryGrammar.jjt`. That file predates the current engine; don't follow it.
+  - `checkOut<date:yyyy-MM-dd>` — there is no format specifier, so you cannot use
+    one to make `toISOString()` values queryable. Fix the stored format instead.
+
+  A `:` suffix is valid only in `sort`, where it means direction:
+  `sort: "checkIn<date:DESC>"`. `aggregateGroupBy` takes the bare form:
+  `"category<numeric>"`.
 - **Scriptr has transactions — use them instead of hand-rolling optimistic locking.**
   `apsdb.beginTransaction()` returns a handle with `commit()` and `rollback()`;
   every operation until then runs inside it.

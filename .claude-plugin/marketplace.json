@@ -9,7 +9,7 @@
     {
       "name": "ntelio-tools",
       "description": "Commands for syncing files, testing APIs, creating endpoints, and building business objects on the ntelio platform",
-      "version": "1.12.0",
+      "version": "1.12.1",
       "source": "./plugins/ntelio-tools",
       "category": "development",
       "author": {
