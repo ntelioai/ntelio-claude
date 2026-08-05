@@ -46,6 +46,101 @@ Every platform resource has exactly one canonical home. Provisioning must never 
 - Implement appropriate security measures for API endpoints
 
 **When developing:**
+- **Before writing any function that reads a document store, search for an existing accessor and read it.** Not "check patterns" — run the search:
+  `grep -rn "<storeNameConstant>" --include=* openapi app ntelioMiddleware/server`
+  Reuse what you find, or extend it. Reimplementing a read that already exists is
+  how this codebase ended up with four separate paginated catalog scans, each with
+  a different page size and cap, three of which silently truncated.
+- **Push filtering, sorting, paging and counting into the query — not into JS.**
+  `resultsPerPage` defaults to 50 and a capped query truncates SILENTLY. Use
+  `count: true` for totals and `pageNumber` for paging. Scan the whole store only
+  for something a query genuinely cannot express, and say why in a comment.
+- **Declare the real field type, and hint every predicate that uses it.** A field's
+  type is one of exactly five: `string`, `text`, `numeric`, `date`, `geospatial`.
+  Anything untyped defaults to `string`.
+
+  A predicate compares as `string` unless hinted — *regardless of the schema* — and
+  a mismatch returns zero rows with `status: "success"`. No error. It fails in both
+  directions:
+
+  ```javascript
+  query: 'price <= 5.49'                    // ❌ nothing — needs <numeric>
+  query: 'checkOut >= "2026-08-05"'         // ❌ nothing on a type="date" field
+  query: 'price<numeric> <= 5.49'           // ✓
+  query: 'checkOut<date> >= "2026-08-05"'   // ✓  (works for `=` too, not just ranges)
+  ```
+
+  So **changing a field's type breaks every query that touches it** — grep the field
+  name and fix all predicates in the same commit. Get the type right before first
+  deploy; afterwards it is a data migration across every child account.
+
+  `date` accepts only `yyyy-MM-dd` or `yyyy-MM-dd'T'HH:mm:ssZ` where `Z` is a numeric
+  offset (`+0000`). JavaScript's `toISOString()` is **rejected on save** — it emits
+  milliseconds and a literal `Z`. Format it yourself or keep the field a `string`.
+
+  The hint is angle brackets with nothing after the type — `checkOut<date>`. Two
+  near-misses both fail outright:
+  - `checkOut[date]` — the square-bracket form declared by apstrata's
+    `queryGrammar.jjt`. That file predates the current engine; don't follow it.
+  - `checkOut<date:yyyy-MM-dd>` — there is no format specifier, so you cannot use
+    one to make `toISOString()` values queryable. Fix the stored format instead.
+
+  A `:` suffix is valid only in `sort`, where it means direction:
+  `sort: "checkIn<date:DESC>"`. `aggregateGroupBy` takes the bare form:
+  `"category<numeric>"`.
+- **Scriptr has transactions — use them instead of hand-rolling optimistic locking.**
+  `apsdb.beginTransaction()` returns a handle with `commit()` and `rollback()`;
+  every operation until then runs inside it.
+
+  ```javascript
+  var ts = apsdb.beginTransaction();
+  var order = orderDocuments.create(orderData);
+  if (order.metadata.status !== "success") { ts.rollback(); return { success: false }; }
+  ts.commit();
+  ```
+
+  Rules: it **cannot nest** (`beginTransaction()` throws if one is already open —
+  it does not join), it cannot span two stores, and users are a system store, so a
+  user change cannot share a transaction with a document change.
+
+  Reach for one on any read-check-write whose correctness depends on nothing else
+  changing in between — allocating the last free room, decrementing stock, creating
+  a parent plus its children. The anti-pattern it replaces is *write the row,
+  re-query to see if someone raced you, delete it if so*: more code, and only
+  correct if the query index is read-your-writes consistent.
+
+  To serialize on a contended row, `get()` takes a `lock` flag, held until
+  commit/rollback:
+
+  ```javascript
+  var ts = apsdb.beginTransaction();
+  try {
+      var room = store.get(roomKey, { lock: true });
+      // ... read-check-write, safe from concurrent modification ...
+      ts.commit();
+  } catch (e) { ts.rollback(); throw e; }
+  ```
+
+  **Only `get()` can lock — `query()` cannot**, so you must know the key. If the
+  contended row is found by a query, query unlocked first, then
+  `get(key, {lock:true})` and re-check inside the transaction. Passing `lock`
+  and `versionNumber` together throws — pessimistic and optimistic are a choice;
+  `meta.latestVersion` is the optimistic one (the save fails if the doc changed
+  underneath you). Locking several rows in a loop can deadlock if two requests
+  take them in different orders — use a deterministic order, or lock one parent row.
+
+  Copy `ntelioMiddleware/server/lib/ecommerce/CartManager._createOrderTransaction`;
+  see also `server/handlers/v1/contacts/key/{put,delete}`.
+- **A store is not a type.** Stores hold many document types, selected with
+  `schema="..."`. Prefer a new schema in an existing store over a new store;
+  accounts have a per-account store cap.
+- **Always put `schema="..."` in a query against a shared store**, even if it
+  holds one type today — a query without it returns every type in the store.
+  Before adding a type to an existing store, grep every query on that store and
+  fix any that lack the predicate, in the same PR. Otherwise you ship working
+  code that breaks code you never touched — your tests pass, your diff is clean,
+  and someone else's query starts returning wrong rows with no error. A reviewer
+  cannot see it in your diff, so catch it while writing.
 - Always check existing patterns in the codebase before creating new approaches
 - Reference Scriptr.io module documentation for proper API usage
 - Consider multi-tenancy implications in CommerceGenie context

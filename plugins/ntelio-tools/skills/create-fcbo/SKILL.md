@@ -30,7 +30,54 @@ Prompt for:
 
 1. **Object name** (singular, PascalCase): e.g., Order, Product, Receipt
 2. **Fields** (name:type): e.g., "name:string, amount:numeric, status:string"
-3. **Store name**: e.g., OrdersStore (default: {Object}sStore)
+3. **Store**: which **EXISTING** store will hold it?
+
+   Do NOT default to a new `{Object}sStore`. Stores and schemas are independent:
+   a store holds MANY document types, separated at query time by `schema="..."`.
+   A store is a *database* in the NoSQL sense — not a table, and not a type.
+   Accounts have a per-account store cap, and projects hit it (commerceGenie is
+   at ~40 stores, almost all one-schema, for exactly this reason).
+
+   Ask, in order:
+   1. Which existing store already holds the most closely related data?
+   2. Does `schema="{object}"` in that store work? (It almost always does.)
+   3. Is this master–detail with something? Co-locating lets ONE query load
+      both sides (`schema="master" OR schema="detail"`), then join in script.
+
+   Propose a NEW store only for a genuinely different lifecycle, ACL regime, or
+   scale — and state the reason out loud so the user can reject it.
+
+### Co-locating has a prerequisite: every existing query must be schema-scoped
+
+Putting a new document type into an existing store is only safe if **every query
+already running against that store filters by `schema="..."`**. A query without
+that predicate returns *all* document types in the store.
+
+**This is the worst failure shape there is: you ship working code and break code
+you never touched.** Your feature works. Its tests pass. The diff is clean and
+reviewable — and nothing in it points at the breakage, because the broken query
+lives in a file you never opened. Someone else's counts go wrong, days later,
+with no error and no obvious cause. A reviewer cannot catch this from the diff,
+so it has to be caught while you are writing, which is what the check below is
+for.
+
+Before adding a schema to an existing store:
+
+1. Find every query against it:
+   `grep -rn "<storeNameConstant>" --include=* openapi app ntelioMiddleware/server`
+2. Read each one. Any query with **no** `schema=` predicate will absorb your
+   documents.
+3. Fix those queries **in the same PR**, or don't co-locate. Retrofitting them
+   after the data lands means debugging wrong numbers in production.
+4. Watch for filters that were added and then disabled — commerceGenie's
+   `dashboard/stats/get` has `var productQuery = null // 'schema="..."'`, so its
+   product count is "every document in the catalog store", correct only because
+   nothing else lives there yet.
+
+And symmetrically: **any new query against a shared store must carry `schema=`**,
+even when the store holds one type today. It costs nothing now and is the whole
+reason co-location stays safe later.
+
 4. **Include UI page?**: Yes/No
 5. **Location**: Project-specific or middleware
 
