@@ -80,6 +80,31 @@ Every platform resource has exactly one canonical home. Provisioning must never 
 
   It is angle brackets. `field[date]` fails; so does `<date:format>` — the `:`
   modifier exists only in `sort`, where it is `ASC`/`DESC`.
+- **Scriptr has transactions — use them instead of hand-rolling optimistic locking.**
+  `apsdb.beginTransaction()` returns a handle with `commit()` and `rollback()`;
+  every operation until then runs inside it.
+
+  ```javascript
+  var ts = apsdb.beginTransaction();
+  var order = orderDocuments.create(orderData);
+  if (order.metadata.status !== "success") { ts.rollback(); return { success: false }; }
+  ts.commit();
+  ```
+
+  Rules: it **cannot nest** (`beginTransaction()` throws if one is already open —
+  it does not join), it cannot span two stores, and users are a system store, so a
+  user change cannot share a transaction with a document change.
+
+  Reach for one on any read-check-write whose correctness depends on nothing else
+  changing in between — allocating the last free room, decrementing stock, creating
+  a parent plus its children. The anti-pattern it replaces is *write the row,
+  re-query to see if someone raced you, delete it if so*: more code, and only
+  correct if the query index is read-your-writes consistent.
+
+  Copy `ntelioMiddleware/server/lib/ecommerce/CartManager._createOrderTransaction`;
+  see also `server/handlers/v1/contacts/key/{put,delete}`. For the weaker
+  single-document case, `meta.latestVersion` fails the save if the doc changed
+  underneath you.
 - **A store is not a type.** Stores hold many document types, selected with
   `schema="..."`. Prefer a new schema in an existing store over a new store;
   accounts have a per-account store cap.
